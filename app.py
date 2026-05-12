@@ -3,11 +3,32 @@ import joblib
 import re
 import nltk
 import spacy
+import subprocess
+import sys
 
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from nltk.sentiment import SentimentIntensityAnalyzer
+
+# =========================
+# DOWNLOAD REQUIRED NLTK RESOURCES (SAFE FOR CLOUD)
+# =========================
+
+nltk.download("punkt")
+nltk.download("stopwords")
+nltk.download("vader_lexicon")
+
+# =========================
+# SPAcy MODEL LOADING (OPTION 2 FIX)
+# =========================
+
+try:
+    nlp = spacy.load("en_core_web_sm")
+
+except OSError:
+    subprocess.run([sys.executable, "-m", "spacy", "download", "en_core_web_sm"])
+    nlp = spacy.load("en_core_web_sm")
 
 # =========================
 # PAGE CONFIGURATION
@@ -39,13 +60,9 @@ st.sidebar.info(
 )
 
 # =========================
-# LOAD MODELS
+# LOAD ML MODEL
 # =========================
 
-# Load spaCy model
-nlp = spacy.load("en_core_web_sm")
-
-# Load saved ML pipeline
 data = joblib.load("nlp_pipeline.pkl")
 
 model = data["model"]
@@ -56,9 +73,7 @@ vectorizer = data["vectorizer"]
 # =========================
 
 stop_words = set(stopwords.words("english"))
-
 lemmatizer = WordNetLemmatizer()
-
 sia = SentimentIntensityAnalyzer()
 
 # =========================
@@ -68,7 +83,6 @@ sia = SentimentIntensityAnalyzer()
 def preprocess(text):
 
     text = text.lower()
-
     text = re.sub(r'[^a-zA-Z\s]', '', text)
 
     tokens = word_tokenize(text)
@@ -76,11 +90,8 @@ def preprocess(text):
     cleaned_tokens = []
 
     for word in tokens:
-
         if word not in stop_words:
-
             lemma = lemmatizer.lemmatize(word)
-
             cleaned_tokens.append(lemma)
 
     return " ".join(cleaned_tokens)
@@ -92,9 +103,7 @@ def preprocess(text):
 def predict_risk(text):
 
     cleaned = preprocess(text)
-
     vector = vectorizer.transform([cleaned])
-
     prediction = model.predict(vector)[0]
 
     return prediction
@@ -106,33 +115,24 @@ def predict_risk(text):
 def analyze_sentiment(text):
 
     score = sia.polarity_scores(text)
-
     compound = score["compound"]
 
     if compound >= 0.05:
         return "Positive"
-
     elif compound <= -0.05:
         return "Negative"
-
     else:
         return "Neutral"
 
 # =========================
-# NAMED ENTITY RECOGNITION
+# NER FUNCTION
 # =========================
 
 def extract_entities(text):
 
     doc = nlp(text)
 
-    entities = []
-
-    for ent in doc.ents:
-
-        entities.append((ent.text, ent.label_))
-
-    return entities
+    return [(ent.text, ent.label_) for ent in doc.ents]
 
 # =========================
 # MAIN UI
@@ -166,20 +166,14 @@ user_input = st.text_area(
 
 if st.button("Analyze Report"):
 
-    if user_input.strip() == "":
-
+    if not user_input.strip():
         st.warning("Please enter an incident report.")
 
     else:
 
-        # =========================
         # ANALYSIS
-        # =========================
-
         risk = predict_risk(user_input)
-
         sentiment = analyze_sentiment(user_input)
-
         entities = extract_entities(user_input)
 
         # =========================
@@ -189,15 +183,12 @@ if st.button("Analyze Report"):
         st.subheader("Risk Prediction")
 
         if risk == "High":
-
             st.error(f"⚠️ {risk} Risk")
 
         elif risk == "Medium":
-
             st.warning(f"⚠️ {risk} Risk")
 
         else:
-
             st.success(f"✅ {risk} Risk")
 
         # =========================
@@ -205,7 +196,6 @@ if st.button("Analyze Report"):
         # =========================
 
         st.subheader("Sentiment Analysis")
-
         st.info(f"Detected Sentiment: {sentiment}")
 
         # =========================
@@ -215,13 +205,9 @@ if st.button("Analyze Report"):
         st.subheader("Named Entities")
 
         if entities:
-
             for entity, label in entities:
-
                 st.write(f"- {entity} ({label})")
-
         else:
-
             st.write("No entities detected.")
 
 # =========================
@@ -229,5 +215,4 @@ if st.button("Analyze Report"):
 # =========================
 
 st.markdown("---")
-
 st.caption("Built with Streamlit, Scikit-learn, NLTK, and spaCy")
